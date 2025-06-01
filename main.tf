@@ -1,0 +1,204 @@
+data "template_file" "_log_configuration" {
+  count = var.log_driver == "__NOT_DEFINED__" ? 0 : 1
+
+  #  depends_on = ["data.template_file._log_driver_options"]
+  template = <<JSON
+$${ jsonencode("logConfiguration") } : {
+$${ jsonencode("logDriver") } : $${ jsonencode(log_driver) },
+$${ jsonencode("options") } : {
+$${ log_driver_options }
+}
+}
+JSON
+
+
+  vars = {
+    log_driver = var.log_driver
+    log_driver_options = join(",\n", data.template_file._log_driver_options.*.rendered)
+  }
+}
+
+data "template_file" "_log_driver_options" {
+  count = length(keys(var.log_driver_options))
+  template = <<JSON
+$${ jsonencode(key) }: $${ jsonencode(value)}
+JSON
+
+
+  vars = {
+    key = keys(var.log_driver_options)[count.index]
+    value = var.log_driver_options[keys(var.log_driver_options)[count.index]]
+  }
+}
+
+data "template_file" "_port_mappings" {
+  #  depends_on = ["data.template_file._port_mapping"]
+  template = <<JSON
+$${val}
+JSON
+
+
+  #host_port == "__NOT_DEFINED__" && container_port == "__NOT_DEFINED__" && protocol == "__NOT_DEFINED__" ? $${ jsonencode([])} : $${val}
+  vars = {
+    val = join(",\n", data.template_file._port_mapping.*.rendered)
+    host_port = lookup(var.port_mappings[0], "hostPort", "")
+    container_port = var.port_mappings[0]["containerPort"]
+    protocol = lookup(var.port_mappings[0], "protocol", "")
+  }
+}
+
+data "template_file" "_port_mapping" {
+  count = var.port_mappings[0]["containerPort"] == "__NOT_DEFINED__" ? 0 : length(var.port_mappings)
+  template = <<JSON
+{
+$${join(",\n",
+  compact(
+    list(
+    host_port == "" || host_port == "__NOT_DEFINED_" ? "" : "$${ jsonencode("hostPort") }: $${host_port}",
+    container_port == "" || container_port == "__NOT_DEFINED_" ? "" : "$${jsonencode("containerPort")}: $${container_port}",
+    protocol == "" || protocol == "__NOT_DEFINED_" ? "" : "$${ jsonencode("protocol") }: $${jsonencode(protocol)}"
+    )
+  )
+)}
+}
+JSON
+
+
+  vars = {
+    host_port = lookup(var.port_mappings[count.index], "hostPort", "")
+    container_port = var.port_mappings[count.index]["containerPort"]
+    protocol = lookup(var.port_mappings[count.index], "protocol", "")
+  }
+}
+
+data "template_file" "_environment_vars" {
+  count = lookup(var.environment_vars, "__NOT_DEFINED__", "__ITS_DEFINED__") == "__NOT_DEFINED__" ? 0 : 1
+  depends_on = [
+    data.template_file._environment_var]
+  template = <<JSON
+$${ jsonencode("environment") } : [
+$${val}
+]
+JSON
+
+
+  vars = {
+    val = join(",\n", data.template_file._environment_var.*.rendered)
+  }
+}
+
+data "template_file" "_environment_var" {
+  count = length(keys(var.environment_vars)) > 0 ? length(keys(var.environment_vars)) : 0
+  template = <<JSON
+{
+$${join(",\n",
+  compact(
+    list(
+    var_name == "__NOT_DEFINED__" ? "" : "$${ jsonencode("name") }: $${ jsonencode(var_name)}",
+    var_value == "__NOT_DEFINED__" ? "" : "$${ jsonencode("value") }: $${ jsonencode(var_value)}"
+    )
+  )
+)}
+}
+JSON
+
+
+  vars = {
+    var_name = sort(keys(var.environment_vars))[count.index]
+    var_value = lookup(
+    var.environment_vars,
+    sort(keys(var.environment_vars))[count.index],
+    "",
+    )
+  }
+}
+
+data "template_file" "_ulimit" {
+  template = jsonencode([
+    {
+      name = "nofile",
+      softLimit = 30000
+      hardLimit = 50000
+    }
+  ])
+}
+
+data "template_file" "_extra_container" {
+  count    = length(var.extra_containers)
+  template = <<JSON
+{
+  $${jsonencode("name")}: $${jsonencode(container.name)},
+  $${jsonencode("image")}: $${jsonencode(container.image)},
+  $${jsonencode("cpu")}: $${container.cpu},
+  $${jsonencode("memory")}: $${container.memory},
+  $${jsonencode("essential")}: false,
+  $${jsonencode("mountPoints")}: $${jsonencode(container.mountPoints)},
+  $${jsonencode("environment")}: $${jsonencode(container.environment)},
+  $${jsonencode("secrets")}: $${jsonencode(container.secrets)},
+  $${jsonencode("logConfiguration")}: {
+    $${jsonencode("logDriver")}: $${jsonencode(container.logConfiguration.logDriver)},
+    $${jsonencode("options")}: $${jsonencode(container.logConfiguration.options)}
+  }
+}
+JSON
+
+  vars = {
+    container = var.extra_containers[count.index]
+  }
+}
+
+data "template_file" "_volumes" {
+  count    = length(var.volumes) > 0 ? 1 : 0
+  template = <<JSON
+  $${jsonencode("volumes")}: $${volumes}
+  JSON
+
+  vars = {
+    volumes = jsonencode(var.volumes)
+  }
+}
+
+
+
+data "template_file" "_final" {
+  depends_on = [
+    data.template_file._environment_vars,
+    data.template_file._port_mappings,
+    data.template_file._log_configuration,
+    data.template_file._extra_container,
+    data.template_file._volumes,
+  ]
+
+  template = <<JSON
+{
+  $${jsonencode("containerDefinitions")}: [
+    {
+      $${val}
+    }
+    $${extra_containers}
+  ]
+  $${volumes_block}
+}
+JSON
+
+  vars = {
+    val = join(",\n    ",
+      compact([
+        "${jsonencode("cpu")}: ${var.cpu}",
+        "${jsonencode("memory")}: ${var.memory}",
+        "${jsonencode("entryPoint")}: ${jsonencode(compact(split(" ", var.entrypoint)))}",
+        "${jsonencode("command")}: ${jsonencode(compact(split(" ", var.service_command)))}",
+        "${jsonencode("links")}: ${jsonencode(var.links)}",
+        "${jsonencode("portMappings")}: [${data.template_file._port_mappings.rendered}]",
+        join("", data.template_file._environment_vars.*.rendered),
+        join("", data.template_file._log_configuration.*.rendered),
+        "${jsonencode("name")}: ${jsonencode(var.service_name)}",
+        "${jsonencode("image")}: ${jsonencode(var.service_image)}",
+        "${jsonencode("essential")}: ${var.essential ? true : false}",
+        "${jsonencode("ulimits")}: ${data.template_file._ulimit.rendered}"
+      ])
+    ),
+    extra_containers = length(data.template_file._extra_container) > 0 ? "," + join(",\n", data.template_file._extra_container[*].rendered) : "",
+    volumes_block    = length(data.template_file._volumes) > 0 ? ",\n" + data.template_file._volumes[0].rendered : ""
+  }
+}
