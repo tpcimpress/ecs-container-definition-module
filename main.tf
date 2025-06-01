@@ -188,30 +188,31 @@ $${volumes_block}
 JSON
 
   vars = {
-    val = join(
-      ",\n    ",
-      compact([
-        "${jsonencode("cpu")}: ${var.cpu}",
-        "${jsonencode("memory")}: ${var.memory}",
-        "${jsonencode("entryPoint")}: ${jsonencode(compact(split(" ", var.entrypoint)))}",
-        "${jsonencode("command")}: ${jsonencode(compact(split(" ", var.service_command)))}",
-        "${jsonencode("links")}: ${jsonencode(var.links)}",
-        "${jsonencode("portMappings")}: [${data.template_file._port_mappings.rendered}]",
-        join("", data.template_file._environment_vars[*].rendered),
-        join("", data.template_file._log_configuration[*].rendered),
-        "${jsonencode("name")}: ${jsonencode(var.service_name)}",
-        "${jsonencode("image")}: ${jsonencode(var.service_image)}",
-        "${jsonencode("essential")}: ${var.essential ? true : false}",
-        "${jsonencode("ulimits")}: ${data.template_file._ulimit.rendered}"
-      ])
-    ),
+  val = join(
+    ",\n    ",
+    compact([
+      "${jsonencode("cpu")}: ${var.cpu}",
+      "${jsonencode("memory")}: ${var.memory}",
+      "${jsonencode("entryPoint")}: ${jsonencode(compact(split(" ", var.entrypoint)))}",
+      "${jsonencode("command")}: ${jsonencode(compact(split(" ", var.service_command)))}",
+      "${jsonencode("links")}: ${jsonencode(var.links)}",
+      "${jsonencode("portMappings")}: [${data.template_file._port_mappings.rendered}]",
+      join("", data.template_file._environment_vars[*].rendered),
+      join("", data.template_file._log_configuration[*].rendered),
+      "${jsonencode("name")}: ${jsonencode(var.service_name)}",
+      "${jsonencode("image")}: ${jsonencode(var.service_image)}",
+      "${jsonencode("essential")}: ${var.essential ? true : false}",
+      "${jsonencode("ulimits")}: ${data.template_file._ulimit.rendered}"
+    ])
+  ),
 
-    extra_containers = length(data.template_file._extra_container) > 0 ?
-      ",\n  " .. join(",\n  ", data.template_file._extra_container[*].rendered)
-      : "",
+  extra_containers = length(data.template_file._extra_container) > 0 ?
+    format(",\n  %s", join(",\n  ", data.template_file._extra_container[*].rendered))
+    : "",
 
-    volumes_block = length(data.template_file._volumes) > 0 ?
-      ",\n" .. data.template_file._volumes[0].rendered
-      : ""
-  }
+  volumes_block = length(data.template_file._volumes) > 0 ?
+    format(",\n%s", data.template_file._volumes[0].rendered)
+    : ""
+}
+
 }
