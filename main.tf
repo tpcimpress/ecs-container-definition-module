@@ -175,23 +175,21 @@ data "template_file" "_final" {
     data.template_file._port_mappings,
     data.template_file._log_configuration,
     data.template_file._extra_container,
-    data.template_file._volumes,
+    data.template_file._volumes
   ]
 
   template = <<JSON
-{
-  $${jsonencode("containerDefinitions")}: [
-    {
-      $${val}
-    }
-    $${extra_containers}
-  ]
-  $${volumes_block}
-}
+[
+  {
+    $${val}
+  }$${extra_containers}
+]
+$${volumes_block}
 JSON
 
   vars = {
-    val = join(",\n    ",
+    val = join(
+      ",\n    ",
       compact([
         "${jsonencode("cpu")}: ${var.cpu}",
         "${jsonencode("memory")}: ${var.memory}",
@@ -199,15 +197,21 @@ JSON
         "${jsonencode("command")}: ${jsonencode(compact(split(" ", var.service_command)))}",
         "${jsonencode("links")}: ${jsonencode(var.links)}",
         "${jsonencode("portMappings")}: [${data.template_file._port_mappings.rendered}]",
-        join("", data.template_file._environment_vars.*.rendered),
-        join("", data.template_file._log_configuration.*.rendered),
+        join("", data.template_file._environment_vars[*].rendered),
+        join("", data.template_file._log_configuration[*].rendered),
         "${jsonencode("name")}: ${jsonencode(var.service_name)}",
         "${jsonencode("image")}: ${jsonencode(var.service_image)}",
         "${jsonencode("essential")}: ${var.essential ? true : false}",
         "${jsonencode("ulimits")}: ${data.template_file._ulimit.rendered}"
       ])
     ),
-    extra_containers = length(data.template_file._extra_container) > 0 ? "," + join(",\n", data.template_file._extra_container[*].rendered) : "",
-    volumes_block    = length(data.template_file._volumes) > 0 ? ",\n" + data.template_file._volumes[0].rendered : ""
+
+    extra_containers = length(data.template_file._extra_container) > 0 ?
+      ",\n  " .. join(",\n  ", data.template_file._extra_container[*].rendered)
+      : "",
+
+    volumes_block = length(data.template_file._volumes) > 0 ?
+      ",\n" .. data.template_file._volumes[0].rendered
+      : ""
   }
 }
