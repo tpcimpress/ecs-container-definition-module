@@ -127,25 +127,34 @@ data "template_file" "_extra_container" {
   count    = length(var.extra_containers)
   template = <<JSON
 {
-  $${jsonencode("name")}: $${jsonencode(container.name)},
-  $${jsonencode("image")}: $${jsonencode(container.image)},
-  $${jsonencode("cpu")}: $${container.cpu},
-  $${jsonencode("memory")}: $${container.memory},
+  $${jsonencode("name")}: $${jsonencode(name)},
+  $${jsonencode("image")}: $${jsonencode(image)},
+  $${jsonencode("cpu")}: $${cpu},
+  $${jsonencode("memory")}: $${memory},
   $${jsonencode("essential")}: false,
-  $${jsonencode("mountPoints")}: $${jsonencode(container.mountPoints)},
-  $${jsonencode("environment")}: $${jsonencode(container.environment)},
-  $${jsonencode("secrets")}: $${jsonencode(container.secrets)},
+  $${jsonencode("mountPoints")}: $${mount_points},
+  $${jsonencode("environment")}: $${environment},
+  $${jsonencode("secrets")}: $${secrets},
   $${jsonencode("logConfiguration")}: {
-    $${jsonencode("logDriver")}: $${jsonencode(container.logConfiguration.logDriver)},
-    $${jsonencode("options")}: $${jsonencode(container.logConfiguration.options)}
+    $${jsonencode("logDriver")}: $${jsonencode(log_driver)},
+    $${jsonencode("options")}: $${log_options}
   }
 }
 JSON
 
   vars = {
-    container = var.extra_containers[count.index]
+    name         = var.extra_containers[count.index].name
+    image        = var.extra_containers[count.index].image
+    cpu          = var.extra_containers[count.index].cpu
+    memory       = var.extra_containers[count.index].memory
+    mount_points = jsonencode(var.extra_containers[count.index].mountPoints)
+    environment  = jsonencode(var.extra_containers[count.index].environment)
+    secrets      = jsonencode(var.extra_containers[count.index].secrets)
+    log_driver   = var.extra_containers[count.index].logConfiguration.logDriver
+    log_options  = jsonencode(var.extra_containers[count.index].logConfiguration.options)
   }
 }
+
 
 data "template_file" "_volumes" {
   count    = length(var.volumes) > 0 ? 1 : 0
